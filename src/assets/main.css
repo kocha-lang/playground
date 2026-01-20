@@ -1,0 +1,15 @@
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #282C34;
+  color: #e0e0e0;
+}
+  
+a {
+  color: #4da6ff;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
