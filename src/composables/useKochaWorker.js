@@ -9,9 +9,15 @@ export function useKochaWorker() {
     { type: "module" },
   );
 
+  const shouldClearOnEveryRun = ref(true)
+
   const executeCode = (code) => {
     if (logs.value.length) {
       logs.value.push({ type: "output", value: "\n" });
+    }
+
+    if(shouldClearOnEveryRun.value) {
+      clearLogs();
     }
 
     worker.postMessage(buildMessage("run", code));
@@ -57,5 +63,6 @@ export function useKochaWorker() {
     debouncedExecution,
     executeCode,
     clearLogs,
+    shouldClearOnEveryRun,
   };
 }

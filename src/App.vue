@@ -1,26 +1,30 @@
 <script setup>
-import { onMounted, ref, watch } from "vue";
-import { CodeEditor } from "monaco-editor-vue3";
-import { useKochaSyntax } from "./composables/useKochaSyntax";
-import { useKochaWorker } from "./composables/useKochaWorker";
+import { onMounted, onUnmounted, ref, watch, reactive, defineAsyncComponent } from "vue";
+
+const CodeEditor = defineAsyncComponent(() =>
+  import('monaco-editor-vue3')
+)
+
 import PlayIcon from "./components/PlayIcon.vue";
 import ClearIcon from "./components/ClearIcon.vue";
 import ShareIcon from "./components/ShareIcon.vue";
-import { debounce, decodeCode, encodeCode } from "./utils";
+import SettingsIcon from "./components/SettingsIcon.vue";
+import AppPopup from "./components/AppPopup.vue";
+import AppSwitch from "./components/AppSwitch.vue";
+
+import { useKochaSyntax } from "./composables/useKochaSyntax";
+import { useKochaWorker } from "./composables/useKochaWorker";
 import { usePopup } from "./composables/usePopup";
+import { useSharePopup } from "./composables/useSharePopup";
+import { debounce, decodeCode, encodeCode } from "./utils";
 
 const code = ref("");
-
 const syntax = useKochaSyntax();
-const { executeCode, logs, clearLogs } = useKochaWorker();
 
-const {
-  showSharePopover,
-  handleCopy,
-  toggleSharePopover,
-  closeSharePopover,
-  popOverCopyText,
-} = usePopup();
+const { executeCode, logs, clearLogs, shouldClearOnEveryRun } = useKochaWorker();
+const { handleCopy, popOverCopyText } = useSharePopup();
+const sharePopup = reactive(usePopup());
+const settingsPopup = reactive(usePopup());
 
 const editorOptions = {
   fontSize: 18,
@@ -38,13 +42,30 @@ const debouncedEncoding = debounce((value) => {
   location.hash = `code=${encoded}`;
 }, 300)
 
-watch(code, debouncedEncoding);
-
-onMounted(() => {
+const decodeFromURL = () => {
   const params = new URLSearchParams(location.hash.slice(1));
   const encoded = params.get("code");
   if (encoded) code.value = decodeCode(encoded);
+}
+
+const handleKeyDown = (e) => {
+  if (e?.code == 'KeyR' && e.shiftKey) {
+    e.stopPropagation();
+    e.preventDefault();
+    executeCode(code.value);
+  }
+}
+
+watch(code, debouncedEncoding);
+
+onMounted(() => {
+  decodeFromURL();
+  document.addEventListener('keydown', handleKeyDown)
 });
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown)
+})
 </script>
 
 <template>
@@ -59,42 +80,13 @@ onMounted(() => {
       </button>
     </nav>
 
-    <div
-      v-if="showSharePopover"
-      class="popover-backdrop"
-      @click.self="closeSharePopover"
-    >
-      <div class="popover">
-        <h3>Share this code</h3>
-
-        <p>
-          Just send the URL to your friends.
-          <br />
-          The code is saved in the link and will work instantly.
-        </p>
-
-        <div class="popover-footer">
-          <button class="btn btn-close" @click="closeSharePopover">
-            Close
-          </button>
-          <button class="btn btn-run" @click="handleCopy">
-            {{ popOverCopyText }}
-          </button>
-        </div>
-      </div>
-    </div>
-
     <main class="layout">
       <section class="editor">
         <div class="header">
           Code
 
           <div class="actions">
-            <button
-              class="btn btn-close"
-              title="Share"
-              @click="toggleSharePopover"
-            >
+            <button class="btn btn-close" title="Share" @click="sharePopup.toggle">
               <ShareIcon />
             </button>
 
@@ -103,36 +95,56 @@ onMounted(() => {
             </button>
           </div>
         </div>
-        <CodeEditor
-          v-model:value="code"
-          :language="syntax.languageId"
-          :theme="syntax.theme || 'vs-dark'"
-          :options="editorOptions"
-        />
+        <CodeEditor v-model:value="code" :language="syntax.languageId" :theme="syntax.theme || 'vs-dark'"
+          :options="editorOptions" />
       </section>
 
       <section class="output">
         <div class="header">
           Output
 
-          <button
-            class="btn btn-close"
-            title="Clear outputs"
-            @click="clearLogs"
-          >
-            <ClearIcon />
-          </button>
+          <div class="actions">
+            <button class="btn btn-close" title="Settings" @click="settingsPopup.open">
+              <SettingsIcon />
+            </button>
+
+            <button class="btn btn-close" title="Clear output" @click="clearLogs">
+              <ClearIcon />
+            </button>
+          </div>
         </div>
         <div class="logs custom-scroll">
-          <pre
-            v-for="(log, i) in logs"
-            :key="i"
-            :class="{ error: log.type === 'error' }"
-            >{{ log.value }}</pre
-          >
+          <pre v-for="(log, i) in logs" :key="i" :class="{ error: log.type === 'error' }">{{ log.value }}</pre>
         </div>
       </section>
     </main>
+
+    <!-- POPUPS -->
+    <AppPopup :show="sharePopup.show" header="Share this code" @close="sharePopup.close">
+      <p>
+        Just send the URL to your friends.
+        <br />
+        The code is saved in the link and will work instantly.
+      </p>
+
+      <template #footer>
+        <button class="btn btn-close" @click="sharePopup.close">
+          Close
+        </button>
+        <button class="btn btn-run" @click="handleCopy">
+          {{ popOverCopyText }}
+        </button>
+      </template>
+    </AppPopup>
+
+    <AppPopup :show="settingsPopup.show" header="Settings" @close="settingsPopup.close">
+
+      <div class="settings-item">
+        <label>Auto-clear output</label>
+        <AppSwitch v-model="shouldClearOnEveryRun"></AppSwitch>
+      </div>
+    </AppPopup>
+    <!-- ---  -->
 
     <footer>
       Kocha Lang. MIT.
@@ -167,7 +179,6 @@ footer {
   display: flex;
   align-items: center;
   gap: 24px;
-  /* justify-content: space-between; */
 }
 
 .title {
@@ -269,6 +280,13 @@ pre {
   color: #f87171;
 }
 
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 32px;
+  padding-bottom: 16px;
+}
+
 .custom-scroll {
   scrollbar-width: thin;
   scrollbar-color: #6366f1 #020617;
@@ -297,43 +315,6 @@ pre {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.popover-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.popover {
-  background: #1f2634;
-  border: 1px solid #334155;
-  border-radius: 14px;
-  padding: 20px 24px;
-  width: 320px;
-  text-align: center;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-}
-
-.popover h3 {
-  margin: 0 0 10px;
-  font-size: 16px;
-}
-
-.popover p {
-  font-size: 14px;
-  color: #cbd5f5;
-  margin-bottom: 16px;
-}
-
-.popover-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 @media (max-width: 900px) {
