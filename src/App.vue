@@ -6,7 +6,7 @@ import { useKochaWorker } from "./composables/useKochaWorker";
 import PlayIcon from "./components/PlayIcon.vue";
 import ClearIcon from "./components/ClearIcon.vue";
 import ShareIcon from "./components/ShareIcon.vue";
-import { decodeCode, encodeCode } from "./utils";
+import { debounce, decodeCode, encodeCode } from "./utils";
 import { usePopup } from "./composables/usePopup";
 
 const code = ref("");
@@ -33,10 +33,12 @@ const clearCode = () => {
   code.value = "";
 };
 
-watch(code, (value) => {
+const debouncedEncoding = debounce((value) => {
   const encoded = encodeCode(value);
   location.hash = `code=${encoded}`;
-});
+}, 300)
+
+watch(code, debouncedEncoding);
 
 onMounted(() => {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -52,7 +54,7 @@ onMounted(() => {
         <a href="https://kocha-lang.uz"> Kocha Lang<sup>1.2.0</sup> </a>
       </h1>
 
-      <button class="btn btn-run" title="Run code" @click="executeCode(code)">
+      <button class="btn btn-run" title="Run code (Shift + R)" @click="executeCode(code)">
         <PlayIcon />
       </button>
     </nav>
