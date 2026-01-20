@@ -4,8 +4,10 @@ import { ref } from "vue";
 
 export function useKochaWorker() {
   const logs = ref([]);
-  const workerUrl = new URL("@/workers/kocha.worker.js", import.meta.url);
-  const worker = new Worker(workerUrl, { type: "module" });
+  const worker = new Worker(
+    new URL("../workers/kocha.worker.js", import.meta.url),
+    { type: "module" },
+  );
 
   const executeCode = (code) => {
     if (logs.value.length) {
