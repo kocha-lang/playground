@@ -49,7 +49,7 @@ const decodeFromURL = () => {
 }
 
 const handleKeyDown = (e) => {
-  if (e?.code == 'KeyR' && e.shiftKey) {
+  if (e.key === 'F9' ) {
     e.stopPropagation();
     e.preventDefault();
     executeCode(code.value);
@@ -75,9 +75,12 @@ onUnmounted(() => {
         <a href="https://kocha-lang.uz"> Kocha Lang<sup>1.2.0</sup> </a>
       </h1>
 
-      <button class="btn btn-run" title="Run code (Shift + R)" @click="executeCode(code)">
+      <button class="btn btn-run" title="Run code (F9)" @click="executeCode(code)">
         <PlayIcon />
       </button>
+        <small>
+            Press <kbd>F9</kbd> to run the code
+        </small>
     </nav>
 
     <main class="layout">
